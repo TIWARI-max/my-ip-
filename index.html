@@ -427,6 +427,31 @@
 /* Quick join: fixed identity and room; no username/IP prompts */
 #landing .field, #landing #nextBtn, #landing #backBtn, #landing .step-dots,
 #landing .join-sub { display:none !important; }
+
+  /* MYChat usability upgrade */
+  .mychat-tools{display:flex;align-items:center;gap:7px}
+  .mychat-search-toggle{border:1px solid var(--border,rgba(127,127,127,.25));background:var(--surface,rgba(127,127,127,.08));color:inherit;border-radius:12px;width:40px;height:40px;display:grid;place-items:center;cursor:pointer;transition:transform .18s,background .18s}
+  .mychat-search-toggle:hover{transform:translateY(-1px);background:rgba(120,120,120,.16)}
+  .mychat-search-panel{display:none;align-items:center;gap:9px;padding:10px 14px;background:var(--panel,rgba(120,120,120,.08));border-bottom:1px solid rgba(127,127,127,.18)}
+  .mychat-search-panel.open{display:flex}
+  .mychat-search-panel input{min-width:0;flex:1;padding:10px 12px;border:1px solid rgba(127,127,127,.25);border-radius:12px;background:var(--input-bg,rgba(127,127,127,.08));color:inherit;outline:none;font:inherit}
+  .mychat-search-panel input:focus{border-color:var(--primary,#7c5cff);box-shadow:0 0 0 3px rgba(124,92,255,.12)}
+  .mychat-tool-btn{border:0;border-radius:10px;padding:9px 11px;background:rgba(127,127,127,.14);color:inherit;cursor:pointer;font:inherit;white-space:nowrap}
+  .mychat-search-count{font-size:12px;opacity:.72;white-space:nowrap;min-width:36px;text-align:center}
+  .msg-row.mychat-search-match .msg-bubble{outline:2px solid rgba(124,92,255,.58);outline-offset:2px}
+  .msg-row.mychat-search-current .msg-bubble{outline:3px solid var(--primary,#7c5cff);outline-offset:3px}
+  @media(max-width:520px){.mychat-search-panel{gap:5px;padding:8px}.mychat-tool-btn{padding:9px 8px}.mychat-search-count{min-width:28px;font-size:11px}.mychat-search-toggle{width:36px;height:36px}}
+
+  /* MYChat Plus feature pack */
+  .mychat-feature-btn{border:1px solid var(--border,rgba(127,127,127,.25));background:var(--surface,rgba(127,127,127,.08));color:inherit;border-radius:12px;min-width:38px;height:38px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font:inherit}
+  .mychat-feature-btn:hover{background:rgba(124,92,255,.14)}
+  .mychat-pinbar{display:none;align-items:center;gap:9px;padding:9px 14px;background:rgba(124,92,255,.10);border-bottom:1px solid rgba(124,92,255,.22);font-size:13px}
+  .mychat-pinbar.active{display:flex}.mychat-pintext{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+  .mychat-file-preview{max-width:min(300px,65vw);max-height:260px;border-radius:10px;display:block;margin-top:5px}.mychat-attachment{display:inline-flex;align-items:center;gap:8px;padding:10px;border:1px solid rgba(127,127,127,.25);border-radius:10px;text-decoration:none;color:inherit;margin-top:5px;max-width:260px;overflow-wrap:anywhere}
+  .mychat-recording{display:none;color:#ef4444;font-size:12px;font-weight:700;align-items:center;gap:5px}.mychat-recording.active{display:inline-flex}
+  .mychat-profile-chip{font-size:11px;opacity:.75;margin-left:6px}.msg-row.is-pinned .msg-bubble{box-shadow:0 0 0 2px rgba(124,92,255,.55)}
+  @media(max-width:520px){.mychat-feature-btn{min-width:34px;height:36px;padding:0 8px}.mychat-feature-label{display:none}.mychat-pinbar{padding:8px 10px}}
+
 </style>
 </head>
 <body>
@@ -505,6 +530,8 @@
             </div>
           </div>
           <div class="header-right-scoop">
+            <button class="mychat-feature-btn" id="mychatProfileBtn" title="Edit profile" aria-label="Edit profile" style="display: none;">👤</button>
+            <button class="mychat-search-toggle" id="mychatSearchToggle" title="Search messages (Ctrl+F)" aria-label="Search messages"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg></button>
             <button class="circ-btn" id="themeToggle" title="Toggle Dark Mode">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
@@ -524,6 +551,13 @@
           </div>
         </div>
 
+        <div class="mychat-pinbar" id="mychatPinbar"><span>📌</span><b>Pinned</b><span class="mychat-pintext" id="mychatPinText" title="Jump to pinned message">No pinned message</span><button class="mychat-feature-btn" id="mychatUnpinBtn" type="button" title="Unpin message" style="display:none">✕</button></div>
+        <div class="mychat-search-panel" id="mychatSearchPanel" role="search" aria-label="Search chat messages">
+          <input id="mychatSearchInput" type="search" placeholder="Search messages in this room…" autocomplete="off" aria-label="Search messages">
+          <span class="mychat-search-count" id="mychatSearchCount">0 results</span>
+          <button class="mychat-tool-btn" id="mychatSearchNext" type="button" title="Next result (Enter)">Next ↓</button>
+          <button class="mychat-tool-btn" id="mychatSearchClose" type="button" aria-label="Close search">✕</button>
+        </div>
         <div class="messages" id="messages">
           <div class="loading-older" id="loadingOlder">Fetching history...</div>
           <div class="msg-empty" id="emptyMsg">Start of conversation</div>
@@ -547,6 +581,10 @@
         </div>
 
         <div class="composer" id="composer">
+          <input id="mychatFileInput" type="file" accept="image/*,audio/*,video/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.csv" hidden>
+          <button class="mychat-feature-btn" id="mychatAttachBtn" type="button" title="Attach image or file" aria-label="Attach image or file">＋</button>
+          <button class="mychat-feature-btn" id="mychatRecordBtn" type="button" title="Record voice message" aria-label="Record voice message">🎙️</button>
+          <span class="mychat-recording" id="mychatRecordingLabel">● Recording</span>
           <div class="input-wrapper">
             <textarea id="msgInput" placeholder="Message..." rows="1"></textarea>
           </div>
@@ -562,6 +600,7 @@
 <!-- Scripts Moved To End of Body to Speed Up Application Load Time -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
 (function(){
@@ -580,6 +619,18 @@
     messagingSenderId: "125747658592",
     appId: "1:125747658592:web:0e73b45c565400bea1e805"
   };
+
+  // Supabase is used only for media files; Firebase Realtime Database still stores chat messages.
+  // Replace these two placeholders with your Supabase Project URL and publishable/anon key.
+  const SUPABASE_URL = 'https://ziurlvvbixdhfkwtfyyb.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_rLvOzh__NXb0FHIXVtPPTA__GZ0tmRZ';
+  const SUPABASE_BUCKET = 'mychat-media';
+  let supabaseClient = null;
+  try {
+    if (window.supabase && SUPABASE_URL.startsWith('https://') && !SUPABASE_ANON_KEY.startsWith('PASTE_')) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+  } catch (supabaseError) { console.error('Supabase initialization failed:', supabaseError); }
 
   let db = null; let firebaseReady = false;
   try{
@@ -610,7 +661,7 @@
     try {
         db.ref('.info/connected').on('value', () => {}); 
     } catch(e){}
-  }
+  } 
   
   // Pending and Read state tracking
   let pendingKeys = new Set();
@@ -675,12 +726,15 @@
   // Canvas Suspension & Visibility Hook
   let isAnimRunning = true;
   document.addEventListener('visibilitychange', () => {
-    if(!document.hidden) { 
-      unreadCount = 0; document.title = 'MYChat — Room-Based Messenger'; 
+    if(!document.hidden) {
+      unreadCount = 0;
+      document.title = 'MYChat — Room-Based Messenger';
       if(!isAnimRunning && window.startCanvasAnimation) window.startCanvasAnimation();
+      // Firebase listeners remain attached while the tab is in the background.
     } else {
+      // Do not leave the room when the user switches tabs or locks their phone.
+      // Only pause the decorative animation to save battery.
       isAnimRunning = false;
-      if (chat.style.display === 'block') leaveRoom(false);
     }
   });
 
@@ -844,10 +898,14 @@
       membersRef = db.ref('rooms/' + safeRoom + '/members');
       myMemberRef = db.ref('rooms/' + safeRoom + '/members/' + safeId(username));
 
-      myMemberRef.set({ name: username, ts: firebase.database.ServerValue.TIMESTAMP, typing: false });
+      myMemberRef.set({ name: username, ts: firebase.database.ServerValue.TIMESTAMP, typing: false, avatar: myProfile.avatar, status: myProfile.status });
+      $('mychatProfileBtn').textContent = myProfile.avatar;
       myMemberRef.onDisconnect().remove();
 
       enterChatUI();
+    }, (error) => {
+      console.error('Could not join room:', error);
+      showJoinError('Could not join this room. Check your connection and Firebase database permissions, then try again.');
     });
   }
 
@@ -961,6 +1019,144 @@
     }
   };
 
+  // Upload media to Supabase Storage and return its public URL.
+  async function uploadMediaToSupabase(fileOrBlob, objectPath, contentType) {
+    if (!supabaseClient) {
+      throw new Error('Supabase is not configured. Add your Supabase Project URL and publishable/anon key near the top of this HTML file.');
+    }
+    const uploadOptions = { contentType: contentType || fileOrBlob.type || 'application/octet-stream', upsert: false };
+    const result = await supabaseClient.storage.from(SUPABASE_BUCKET).upload(objectPath, fileOrBlob, uploadOptions);
+    if (result.error) throw result.error;
+    const publicResult = supabaseClient.storage.from(SUPABASE_BUCKET).getPublicUrl(result.data.path);
+    if (!publicResult || !publicResult.data || !publicResult.data.publicUrl) throw new Error('Could not create a public download URL. Check that the bucket is public.');
+    return publicResult.data.publicUrl;
+  }
+
+  // Profile, attachments, voice notes and pinned-message controls.
+  let myProfile = { avatar: localStorage.getItem('mychat_avatar') || '🙂', status: localStorage.getItem('mychat_status') || '' };
+  let pinnedMessageData = null;
+  let memberProfiles = {}; 
+  let mediaRecorder = null, recordedChunks = [];
+  const fileInput = $('mychatFileInput'), attachBtn = $('mychatAttachBtn'), recordBtn = $('mychatRecordBtn');
+  const recordingLabel = $('mychatRecordingLabel'), pinbar = $('mychatPinbar'), pinText = $('mychatPinText'), unpinBtn = $('mychatUnpinBtn');
+  $('mychatProfileBtn').addEventListener('click', async () => {
+    const avatar = prompt('Choose a profile emoji (example: 😎, 🐼, 🚀):', myProfile.avatar);
+    if (avatar === null) return;
+    const status = prompt('Set a short status (optional):', myProfile.status);
+    if (status === null) return;
+    myProfile.avatar = (avatar.trim().slice(0, 8) || '🙂'); myProfile.status = status.trim().slice(0, 60);
+    localStorage.setItem('mychat_avatar', myProfile.avatar); localStorage.setItem('mychat_status', myProfile.status);
+    if (myMemberRef && isOnline) myMemberRef.update({ avatar: myProfile.avatar, status: myProfile.status });
+    $('mychatProfileBtn').textContent = myProfile.avatar;
+    memberProfiles[username] = { avatar: myProfile.avatar, status: myProfile.status };
+    renderMembersFromProfileRefresh();
+  });
+  function renderMembersFromProfileRefresh(){ if(membersRef) membersRef.once('value', snap => renderMembers(snap.val() || {})); }
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files && fileInput.files[0]; fileInput.value = '';
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { alert('Please choose a file smaller than 8 MB.'); return; }
+    if (!file.type && !/\.(pdf|txt|doc|docx|zip|png|jpe?g|gif|webp)$/i.test(file.name)) { alert('This file type is not supported.'); return; }
+    if (!messagesRef || !isOnline) { alert('File sharing needs an active internet connection and a connected chat room.'); return; }
+    if (!supabaseClient) { alert('Set up Supabase first: add your Project URL and publishable/anon key in the configuration near the top of this HTML file.'); return; }
+    try {
+      attachBtn.disabled = true; attachBtn.textContent = '…';
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100) || 'attachment';
+      const objectPath = 'rooms/' + safeRoom + '/attachments/' + Date.now() + '_' + cleanName;
+      const url = await uploadMediaToSupabase(file, objectPath, file.type || 'application/octet-stream');
+      const isImage = file.type.startsWith('image/');
+      await messagesRef.push({ user: username, text: file.name, type: isImage ? 'image' : 'file', fileUrl: url, fileName: file.name, fileType: file.type || 'application/octet-stream', fileSize: file.size, ts: firebase.database.ServerValue.TIMESTAMP });
+    } catch(err) {
+      console.error('MYChat attachment upload error:', err);
+      alert('File upload failed' + (err && err.code ? ' (' + err.code + ')' : '') + ': ' + (err && err.message ? err.message : 'Unknown error') +
+        '\\n\\nCheck Firebase Storage is enabled, the storageBucket matches your Firebase project, and Storage rules allow this upload.');
+    }
+    finally { attachBtn.disabled = false; attachBtn.textContent = '＋'; }
+  });
+  recordBtn.addEventListener('click', async () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      try { mediaRecorder.stop(); } catch (err) { console.error('Could not stop voice recording:', err); }
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+      alert('Voice recording needs a modern browser and a secure page (HTTPS or localhost). If you opened this HTML directly as a file, host it on HTTPS first.');
+      return;
+    }
+    if (!messagesRef || !isOnline) {
+      alert('Voice messages need an active connection and a connected chat room.');
+      return;
+    }
+    if (!supabaseClient) { alert('Set up Supabase first: add your Project URL and publishable/anon key in the configuration near the top of this HTML file.'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      const preferredTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+      const supportedType = preferredTypes.find(t => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+      const recorder = supportedType ? new MediaRecorder(stream, { mimeType: supportedType }) : new MediaRecorder(stream);
+      mediaRecorder = recorder;
+      recorder.ondataavailable = e => { if (e.data && e.data.size) recordedChunks.push(e.data); };
+      recorder.onerror = e => {
+        console.error('MYChat recorder error:', e.error || e);
+        stream.getTracks().forEach(t => t.stop());
+        recordingLabel.classList.remove('active');
+        recordBtn.textContent = '🎙️';
+        alert('Recording failed: ' + ((e.error && e.error.message) || 'The browser could not record audio.'));
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        recordingLabel.classList.remove('active');
+        recordBtn.textContent = '🎙️';
+        const mimeType = recorder.mimeType || (recordedChunks[0] && recordedChunks[0].type) || 'audio/webm';
+        const blob = new Blob(recordedChunks, { type: mimeType });
+        if (!blob.size) {
+          alert('No audio was recorded. Allow microphone access and try speaking for a few seconds.');
+          return;
+        }
+        try {
+          recordBtn.disabled = true;
+          const extension = mimeType.includes('mp4') ? 'm4a' : (mimeType.includes('ogg') ? 'ogg' : 'webm');
+          const objectPath = 'rooms/' + safeRoom + '/voice/' + Date.now() + '_' + safeId(username) + '.' + extension;
+          const url = await uploadMediaToSupabase(blob, objectPath, mimeType);
+          await messagesRef.push({ user: username, text: 'Voice message', type: 'audio', fileUrl: url, fileName: 'Voice message', fileType: mimeType, fileSize: blob.size, ts: firebase.database.ServerValue.TIMESTAMP });
+        } catch(err) {
+          console.error('MYChat voice upload error:', err);
+          alert('Voice upload failed' + (err && err.code ? ' (' + err.code + ')' : '') + ': ' + (err && err.message ? err.message : 'Unknown error') +
+            '\\n\\nCheck Firebase Storage is enabled and its rules permit uploads.');
+        } finally { recordBtn.disabled = false; }
+      };
+      recorder.start();
+      recordingLabel.classList.add('active');
+      recordBtn.textContent = '■';
+    } catch(err) {
+      console.error('MYChat microphone error:', err);
+      const detail = err && err.name === 'NotAllowedError' ? 'Microphone permission was denied. Allow microphone access in browser settings.' :
+        err && err.name === 'NotFoundError' ? 'No microphone was found on this device.' :
+        (err && err.message ? err.message : 'Microphone is unavailable.');
+      alert(detail);
+    }
+  });
+  function updatePinnedMessage(data){
+    pinnedMessageData = data || null;
+    if (!pinbar) return;
+    if (!data || !data.id) { pinbar.classList.remove('active'); return; }
+    pinbar.classList.add('active'); pinText.textContent = (data.user || 'User') + ': ' + (data.text || 'Attachment').slice(0, 160);
+    unpinBtn.style.display = roomAdmin === username ? 'inline-flex' : 'none';
+  }
+  if (pinText) pinText.addEventListener('click', () => {
+    if (!pinnedMessageData || !pinnedMessageData.id) return;
+    const target = messagesEl.querySelector('[data-key="' + CSS.escape(pinnedMessageData.id) + '"]');
+    if (target) { target.scrollIntoView({behavior:'smooth', block:'center'}); target.classList.add('is-pinned'); setTimeout(() => target.classList.remove('is-pinned'), 2500); }
+    else alert('The pinned message is not in the currently loaded history yet.');
+  });
+  if (unpinBtn) unpinBtn.addEventListener('click', () => { if(roomAdmin === username && settingsRef && confirm('Unpin this message for everyone?')) settingsRef.child('pinnedMessage').remove(); });
+  window.pinMessage = function(msgKey){
+    if (roomAdmin !== username || !settingsRef) { alert('Only the room admin can pin messages.'); return; }
+    const m = msgMap[msgKey] && msgMap[msgKey]._messageData;
+    if (!m) { alert('Could not find this message.'); return; }
+    settingsRef.child('pinnedMessage').set({ id: msgKey, user: m.user || 'User', text: m.text || m.fileName || 'Attachment', ts: Date.now() });
+  };
+
   function enterChatUI(){
     landing.style.display = 'none';
     chat.style.display = 'block';
@@ -968,6 +1164,7 @@
     roomLabel2.textContent = roomKey;
     updateHeaderAvatar(roomKey);
     adminBadge.style.display = (roomAdmin === username) ? 'block' : 'none';
+    clearBtn.style.display = '';
     
     lastSeenTimestamp = parseFloat(localStorage.getItem('lastSeen_' + safeRoom)) || 0;
     unreadDividerInserted = false;
@@ -982,7 +1179,8 @@
 
     syncViewport();
     
-    setInterval(() => {
+    if (window.mychatLastSeenTimer) clearInterval(window.mychatLastSeenTimer);
+    window.mychatLastSeenTimer = setInterval(() => {
        if(safeRoom && chat.style.display === 'block' && !document.hidden) {
           localStorage.setItem('lastSeen_' + safeRoom, Date.now());
        }
@@ -1005,6 +1203,8 @@
       if(snap.val() === true) { alert("You have been kicked from the room by the Admin."); leaveRoom(false); }
     });
     
+    settingsRef.child('pinnedMessage').on('value', snap => updatePinnedMessage(snap.val()));
+
     settingsRef.child('nuke').on('value', snap => {
       if (snap.val() === true) { alert("This room was deleted by the Server Admin."); leaveRoom(true); }
     });
@@ -1214,6 +1414,7 @@
   function buildMessageElement(m) {
     const row = document.createElement('div');
     row.dataset.key = m._key;
+    row._messageData = m;
     
     if(m.sys){
       row.className = 'msg-row system';
@@ -1231,7 +1432,7 @@
     if (m.isLocal || pendingKeys.has(m._key)) { row.classList.add('pending'); }
 
     let innerHTML = '';
-    if (!own) { innerHTML += `<div class="member-avatar" style="background:${avatarColor(m.user)}">${escapeHtml(initials(m.user))}</div><div class="msg-col">`; }
+    if (!own) { const profile = memberProfiles[m.user] || {}; innerHTML += `<div class="member-avatar" style="background:${avatarColor(m.user)}">${escapeHtml(profile.avatar || initials(m.user))}</div><div class="msg-col">`; }
 
     innerHTML += `<div class="msg-meta"><span class="who ${own?'own':'other'}">${escapeHtml(m.user)}</span></div>`;
 
@@ -1248,7 +1449,13 @@
         innerHTML += `<div class="quote-box" onclick="document.querySelector('[data-key=\\'${m.replyTo.id}\\']')?.scrollIntoView({behavior:'smooth', block:'center'})"><b>${escapeHtml(m.replyTo.user)}</b><span>${escapeHtml(m.replyTo.text.replace(/\n/g, ' '))}</span></div>`;
       }
       
-      innerHTML += escapeHtml(m.text);
+      if (m.type === 'image' && m.fileUrl) {
+        innerHTML += `<a href="${escapeHtml(m.fileUrl)}" target="_blank" rel="noopener noreferrer"><img class="mychat-file-preview" src="${escapeHtml(m.fileUrl)}" alt="${escapeHtml(m.fileName || 'Shared image')}" loading="lazy"></a>`;
+      } else if (m.type === 'audio' && m.fileUrl) {
+        innerHTML += `<audio controls preload="none" style="display:block;max-width:240px;margin-top:6px" src="${escapeHtml(m.fileUrl)}">Audio playback is not supported.</audio>`;
+      } else if (m.type === 'file' && m.fileUrl) {
+        innerHTML += `<a class="mychat-attachment" href="${escapeHtml(m.fileUrl)}" target="_blank" rel="noopener noreferrer" download="${escapeHtml(m.fileName || 'attachment')}">📎 ${escapeHtml(m.fileName || 'Download file')} <small>${m.fileSize ? (m.fileSize/1024).toFixed(0)+' KB' : ''}</small></a>`;
+      } else { innerHTML += escapeHtml(m.text || ''); }
       if (m.edited) innerHTML += ` <span style="font-size:10px;opacity:0.5;font-style:italic;">(edited)</span>`;
       
       if (own && !isSuperAdmin && m.ts) {
@@ -1291,6 +1498,7 @@
         if (isSuperAdmin) { actionsHTML += `<button class="a-btn" title="Perm Delete" onclick="permDeleteMessage('${m._key}')">🔥</button>`; } 
         else { actionsHTML += `<button class="a-btn" title="Delete" onclick="deleteMessage('${m._key}')">🗑️</button>`; }
       }
+      if (roomAdmin === username && !isDeleted) actionsHTML += `<button class="a-btn" title="Pin for everyone" onclick="pinMessage('${m._key}')">📌</button>`;
       actionsHTML += `</div>`;
       innerHTML += actionsHTML;
     }
@@ -1469,6 +1677,9 @@
     entries.forEach(([safeName, data]) => {
       const name = data.name || safeName;
       const joinTs = data.ts;
+      const memberAvatar = data.avatar || initials(name);
+      memberProfiles[name] = { avatar: memberAvatar, status: data.status || '' };
+      const memberStatus = data.status || ''; 
       
       // FIX: Only add OTHER users to the header's online list
       if (name !== username) {
@@ -1480,13 +1691,13 @@
       const row = document.createElement('div');
       row.className = 'member-row';
       row.innerHTML =
-        `<div class="member-avatar" style="background:${avatarColor(name)}">${escapeHtml(initials(name))}</div>
+        `<div class="member-avatar" style="background:${avatarColor(name)}">${escapeHtml(memberAvatar)}</div>
         <div style="display:flex; flex-direction:column; flex:1; min-width:0;">
           <div class="member-name ${name === username ? 'me' : ''}">
             ${escapeHtml(name)} ${name === username ? '(you)' : ''} 
             ${name === roomAdmin ? '👑' : ''}
           </div>
-          <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">Joined ${escapeHtml(fmtTime(joinTs))}</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">${memberStatus ? escapeHtml(memberStatus) : 'Joined ' + escapeHtml(fmtTime(joinTs))}</div>
         </div>
         ${(roomAdmin === username && name !== username) ? `<button class="kick-btn" onclick="kickUser('${escapeHtml(name)}')">KICK</button>` : ''}
         <div class="member-status"></div>`;
@@ -1545,6 +1756,7 @@
     if(settingsRef) { settingsRef.child('banned').child(safeId(username)).off(); settingsRef.child('nuke').off(); }
     
     isSuperAdmin = false;
+    if (window.mychatLastSeenTimer) { clearInterval(window.mychatLastSeenTimer); window.mychatLastSeenTimer = null; }
     document.querySelector('.members-label').textContent = 'MEMBERS';
     adminBadge.style.display = 'none';
     
@@ -1553,12 +1765,14 @@
 
     chat.style.display = 'none'; landing.style.display = 'flex';
     connectBtn.disabled = false; connectBtn.textContent = 'CONNECT →';
-    roomInput.value = ''; usernameInput.value = '';
+    // Keep the app's quick-join defaults so the user can reconnect with one tap.
+    roomInput.value = '2425'; usernameInput.value = '@';
     username = ''; roomKey = ''; safeRoom = '';
     sidebar.classList.remove('open'); scrim.classList.remove('open');
     joinCard.style.transform = 'rotateX(0) rotateY(0)';
     joinCard.classList.remove('rotY90', 'rotYneg90');
-    stepRoom.classList.add('hidden'); stepUsername.classList.remove('hidden');
+    stepUsername.classList.add('hidden'); stepRoom.classList.remove('hidden');
+    connectBtn.disabled = false; connectBtn.textContent = 'CONNECT →';
     cancelAction();
   }
 
@@ -1723,6 +1937,82 @@
       alert('To install: tap the Share icon, then "Add to Home Screen".');
     });
   }
+})();
+</script>
+
+<script>
+/* MYChat usability upgrades: in-room search, keyboard shortcuts and local draft recovery. */
+(function(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const toggle = $('mychatSearchToggle'), panel = $('mychatSearchPanel');
+  const searchInput = $('mychatSearchInput'), count = $('mychatSearchCount');
+  const nextBtn = $('mychatSearchNext'), closeBtn = $('mychatSearchClose');
+  const messages = $('messages'), composerInput = $('msgInput'), send = $('sendBtn');
+  if (!toggle || !panel || !searchInput || !messages || !composerInput) return;
+  let matches = [], active = -1;
+  const roomCode = '2425';
+  const draftKey = 'mychat_draft_' + roomCode;
+
+  function clearMarks(){
+    messages.querySelectorAll('.mychat-search-match,.mychat-search-current').forEach(el=>el.classList.remove('mychat-search-match','mychat-search-current'));
+  }
+  function runSearch(shouldFocus=true){
+    const previous = matches[active];
+    clearMarks();
+    const q = searchInput.value.trim().toLocaleLowerCase();
+    matches = q ? Array.from(messages.querySelectorAll('.msg-row:not(.typing-indicator-row)')).filter(el=>el.textContent.toLocaleLowerCase().includes(q)) : [];
+    matches.forEach(el=>el.classList.add('mychat-search-match'));
+    active = matches.length ? (previous && matches.includes(previous) ? matches.indexOf(previous) : 0) : -1;
+    if(active >= 0 && shouldFocus) focusMatch();
+    else if(active >= 0) count.textContent = (active+1) + ' / ' + matches.length;
+    else count.textContent = q ? '0 results' : 'Search';
+  }
+  function focusMatch(){
+    clearMarks();
+    matches.forEach(el=>el.classList.add('mychat-search-match'));
+    if(active < 0 || !matches[active]) return;
+    const el=matches[active]; el.classList.add('mychat-search-current');
+    el.scrollIntoView({behavior:'smooth',block:'center'});
+    count.textContent=(active+1)+' / '+matches.length;
+  }
+  function nextMatch(){
+    if(!matches.length){runSearch();return;}
+    active=(active+1)%matches.length; focusMatch();
+  }
+  function openSearch(){panel.classList.add('open'); searchInput.focus(); searchInput.select(); runSearch();}
+  function closeSearch(){panel.classList.remove('open');searchInput.value='';clearMarks();matches=[];active=-1;count.textContent='0 results';}
+  toggle.addEventListener('click',()=>panel.classList.contains('open')?closeSearch():openSearch());
+  closeBtn.addEventListener('click',closeSearch);
+  nextBtn.addEventListener('click',nextMatch);
+  searchInput.addEventListener('input',runSearch);
+  searchInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault(); if(matches.length) nextMatch(); else runSearch();}
+    if(e.key==='Escape'){e.preventDefault();closeSearch();}
+  });
+  document.addEventListener('keydown',e=>{
+    const isFind=(e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f';
+    if(isFind && $('chat') && getComputedStyle($('chat')).display!=='none'){e.preventDefault();openSearch();}
+    if(e.key==='Escape' && panel.classList.contains('open') && document.activeElement!==searchInput) closeSearch();
+  });
+  // Keep the search result set fresh as live messages arrive or change.
+  const messageObserver = new MutationObserver(()=>{if(panel.classList.contains('open') && searchInput.value.trim()) runSearch(false);});
+  messageObserver.observe(messages,{childList:true,subtree:true,characterData:true});
+
+  // Restore a room-specific draft on first entry and persist edits locally.
+  let draftRestored=false;
+  const restoreDraft=()=>{
+    if(draftRestored || !$('chat') || getComputedStyle($('chat')).display==='none') return;
+    draftRestored=true;
+    try{const saved=localStorage.getItem(draftKey);if(saved && !composerInput.value){composerInput.value=saved;composerInput.dispatchEvent(new Event('input',{bubbles:true}));}}catch(_e){}
+  };
+  composerInput.addEventListener('input',()=>{try{if(composerInput.value) localStorage.setItem(draftKey,composerInput.value);else localStorage.removeItem(draftKey);}catch(_e){}});
+  // The app's send handler clears the composer synchronously; clear its saved draft after it runs.
+  if(send) send.addEventListener('click',()=>setTimeout(()=>{if(!composerInput.value)try{localStorage.removeItem(draftKey);}catch(_e){}},0));
+  composerInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey)setTimeout(()=>{if(!composerInput.value)try{localStorage.removeItem(draftKey);}catch(_e){}},0);});
+  const chatObserver=new MutationObserver(restoreDraft);
+  chatObserver.observe($('chat'),{attributes:true,attributeFilter:['style','class']});
+  restoreDraft();
 })();
 </script>
 </body>
