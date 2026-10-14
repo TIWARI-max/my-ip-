@@ -1,50 +1,52 @@
-const CACHE = 'mychat-shell-v1';
-
-self.addEventListener('install', e => { 
-  self.skipWaiting(); 
-  e.waitUntil(caches.open(CACHE).then(c => c.add(self.registration.scope))); 
+ self.addEventListener('install', (event) => {
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', e => { 
-  self.clients.claim(); 
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
 });
 
-// Handle Background Push Events
-self.addEventListener('push', event => {
-  if (!event.data) return;
+self.addEventListener('push', (event) => {
+  let data = { title: "New Message", body: "You have a new message.", url: "/" };
 
-  try {
-    const data = event.data.json();
-    const options = {
-      body: data.body || 'New message received',
-      icon: '/icon-192x192.png', // Reference your PWA icon
-      badge: '/badge-72x72.png', // Small monochrome icon for Android status bar
-      vibrate: [200, 100, 200],
-      data: { url: data.url || '/' }
-    };
-
-    event.waitUntil(
-      self.registration.showNotification(data.title || 'MYChat', options)
-    );
-  } catch (err) {
-    console.error('Push event payload is not valid JSON', err);
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data.body = event.data.text();
+    }
   }
-});
 
-// Handle Notification Clicks (Wake up / Focus the app)
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  const urlToOpen = event.notification.data.url;
+  const options = {
+    body: data.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [120, 60, 120],
+    data: { url: data.url || '/' },
+    // The sound property is included for environments that support it, 
+    // but it will be overridden by the OS default on iOS and most Androids.
+    sound: '/assets/custom-alert.mp3' 
+  };
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
-      // Focus existing window if already open
-      for (let client of windowClients) {
-        if (client.url === urlToOpen && 'focus' in client) {
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const urlToOpen = event.notification.data.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Focus the app if it is already open in the background
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url.includes(urlToOpen) && 'focus' in client) {
           return client.focus();
         }
       }
-      // Open new window if app is completely closed
+      // Otherwise, open a new window
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
