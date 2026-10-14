@@ -494,6 +494,9 @@
             <div class="field-hint">Anyone entering this code will share the room.</div>
           </div>
           <button class="connect-btn" id="connectBtn">CONNECT →</button>
+          <div id="loginPwaHint" style="margin-top:12px;text-align:center;font-size:11px;line-height:1.45;color:var(--text-dim);">
+            Install MYChat for a faster app-like experience and enable notifications for new messages.
+          </div>
           <button class="back-link" id="backBtn">← back to username</button>
           <div class="join-error" id="joinError"></div>
         </div>
@@ -857,7 +860,9 @@
 
   function connect(){
     username = usernameInput.value.trim();
+    try { localStorage.setItem('mychat_username', username); } catch(_) {}
     roomKey = roomInput.value.trim();
+    try { localStorage.setItem('mychat_room', roomKey); } catch(_) {}
     joinError.style.display = 'none';
 
     if(!username){ goToStep1(); return; }
@@ -1167,6 +1172,13 @@
     chat.style.display = 'block';
     roomLabel.textContent = roomKey;
     roomLabel2.textContent = roomKey;
+    try {
+      localStorage.setItem('mychat_username', username);
+      localStorage.setItem('mychat_room', roomKey);
+      if (window.MYChatPush && Notification.permission === 'granted') {
+        window.MYChatPush.enable().catch(()=>{});
+      }
+    } catch(_) {}
     updateHeaderAvatar(roomKey);
     adminBadge.style.display = (roomAdmin === username) ? 'block' : 'none';
     clearBtn.style.display = '';
@@ -1285,6 +1297,29 @@
       }
       if (m.user !== username && !m.sys && document.hidden) {
         unreadCount++; document.title = `(${unreadCount}) New Message - MYChat`; alertSound.play().catch(()=>{});
+      }
+
+      // In-page/background-tab notification. This works while the document is
+      // alive. When the app is fully closed, /sw.js + Web Push handles it.
+      if (m.user !== username && !m.sys && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          const title = (m.user || 'New message') + ' • MYChat';
+          const body = m.type === 'audio' ? '🎙️ Voice message' :
+                       m.type === 'image' ? '🖼️ Image' :
+                       m.type === 'file' ? '📎 ' + (m.fileName || 'Attachment') :
+                       String(m.text || 'New message').slice(0, 160);
+          navigator.serviceWorker && navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title, {
+              body,
+              tag: 'mychat-' + safeRoom,
+              renotify: true,
+              icon: '/icon-192.png',
+              badge: '/icon-192.png',
+              data: {url: location.href, room: safeRoom, messageKey: m._key},
+              vibrate: [120, 60, 120]
+            }).catch(()=>{});
+          });
+        } catch(_) {}
       }
       
       // Save to local history
@@ -1885,62 +1920,195 @@
 })();
 </script>
 
-<button id="pwaInstallBtn" style="display:none;position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9999;background:#4A44D4;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:'Poppins',sans-serif;font-weight:600;font-size:14px;box-shadow:0 10px 25px -5px rgba(74,68,212,0.5);cursor:pointer;">⬇ Install App</button>
+<!-- PWA / Push controls -->
+<div id="pwaControls" style="position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9999;display:none;gap:8px;flex-direction:column;align-items:stretch;">
+  <button id="pwaInstallBtn" type="button" style="display:none;background:#4A44D4;color:#fff;border:none;border-radius:999px;padding:12px 20px;font-family:'Poppins',sans-serif;font-weight:600;font-size:14px;box-shadow:0 10px 25px -5px rgba(74,68,212,0.5);cursor:pointer;">⬇ Install App</button>
+  <button id="pushEnableBtn" type="button" style="display:none;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:10px 18px;font-family:'Poppins',sans-serif;font-weight:600;font-size:13px;cursor:pointer;">🔔 Enable Notifications</button>
+</div>
+
 <script>
 (function(){
-  // --- PWA installability: register a service worker from an inline blob (no separate file needed) ---
-  var swSource = [
-    "const CACHE='mychat-shell-v1';",
-    "self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.add(self.registration.scope))); });",
-    "self.addEventListener('activate', e => { self.clients.claim(); });",
-    "self.addEventListener('fetch', e => {",
-    "  if(e.request.method !== 'GET') return;",
-    "  e.respondWith(",
-    "    fetch(e.request).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)).catch(()=>{}); return res; })",
-    "    .catch(() => caches.match(e.request).then(r => r || caches.match(self.registration.scope)))",
-    "  );",
-    "});"
-  ].join('\\n');
+  'use strict';
 
-  if('serviceWorker' in navigator){
-    try{
-      var blob = new Blob([swSource], { type: 'text/javascript' });
-      var swUrl = URL.createObjectURL(blob);
-      navigator.serviceWorker.register(swUrl).catch(function(err){ console.warn('SW registration failed:', err); });
-    }catch(err){ console.warn('SW setup failed:', err); }
+  /*
+   * MYChat PWA + Web Push
+   * ---------------------
+   * IMPORTANT WEB PLATFORM LIMIT:
+   * A production Web Push service worker MUST be served as a same-origin
+   * JavaScript file (normally /sw.js). Browsers do not allow a service worker
+   * to be registered from a Blob/data URL. Therefore this HTML registers
+   * /sw.js when it exists, while keeping the app itself in this single HTML.
+   *
+   * Set PUSH_VAPID_PUBLIC_KEY to your Web Push VAPID public key.
+   * Set PUSH_SUBSCRIBE_ENDPOINT to your server endpoint that stores the
+   * subscription and sends Web Push messages.
+   */
+  const PUSH_VAPID_PUBLIC_KEY = window.MYCHAT_VAPID_PUBLIC_KEY || '';
+  const PUSH_SUBSCRIBE_ENDPOINT = window.MYCHAT_PUSH_SUBSCRIBE_ENDPOINT || '/api/push/subscribe';
+  const PUSH_SERVICE_WORKER_URL = '/sw.js';
+
+  const controls = document.getElementById('pwaControls');
+  const installBtn = document.getElementById('pwaInstallBtn');
+  const pushBtn = document.getElementById('pushEnableBtn');
+  let deferredPrompt = null;
+  let swRegistration = null;
+
+  function b64ToUint8Array(base64String){
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
   }
 
-  // --- Install prompt button ---
-  var installBtn = document.getElementById('pwaInstallBtn');
-  var deferredPrompt = null;
+  function isStandalone(){
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+  }
 
-  window.addEventListener('beforeinstallprompt', function(e){
+  function showControls(){
+    if (!isStandalone()) controls.style.display = 'flex';
+  }
+
+  async function registerPushServiceWorker(){
+    if (!('serviceWorker' in navigator)) return null;
+    if (!window.isSecureContext) {
+      console.warn('MYChat Push: HTTPS (or localhost) is required.');
+      return null;
+    }
+    try{
+      swRegistration = await navigator.serviceWorker.register(PUSH_SERVICE_WORKER_URL, {scope:'/'});
+      await navigator.serviceWorker.ready;
+      return swRegistration;
+    }catch(err){
+      console.warn('MYChat Push: /sw.js could not be registered.', err);
+      return null;
+    }
+  }
+
+  async function enablePushNotifications(){
+    if (!('Notification' in window)) {
+      alert('This browser does not support web notifications.');
+      return;
+    }
+    if (!window.isSecureContext) {
+      alert('Notifications require HTTPS (localhost is also allowed for development).');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted'){
+      pushBtn.textContent = permission === 'denied' ? '🔕 Notifications Blocked' : '🔔 Enable Notifications';
+      return;
+    }
+
+    const registration = swRegistration || await registerPushServiceWorker();
+    if(!registration){
+      alert('Push needs a same-origin /sw.js service worker. The HTML is ready for it, but the service worker file must be deployed beside this HTML.');
+      return;
+    }
+
+    if(!('PushManager' in window)){
+      alert('This browser does not support the Web Push API.');
+      return;
+    }
+
+    if(!PUSH_VAPID_PUBLIC_KEY){
+      alert('Notification permission is enabled. To receive messages while MYChat is closed, configure your Web Push VAPID public key and push server endpoint in the HTML.');
+      pushBtn.textContent = '✅ Notifications Allowed';
+      return;
+    }
+
+    try{
+      let subscription = await registration.pushManager.getSubscription();
+      if(!subscription){
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64ToUint8Array(PUSH_VAPID_PUBLIC_KEY)
+        });
+      }
+
+      localStorage.setItem('mychat_push_subscription', JSON.stringify(subscription));
+
+      // Send the subscription to the application server. The server must
+      // associate it with the current MYChat username/room and use Web Push
+      // with its private VAPID key when a new message is created.
+      if(PUSH_SUBSCRIBE_ENDPOINT){
+        const identity = {
+          username: localStorage.getItem('mychat_username') || '',
+          room: localStorage.getItem('mychat_room') || ''
+        };
+        const response = await fetch(PUSH_SUBSCRIBE_ENDPOINT, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({subscription, identity})
+        });
+        if(!response.ok) throw new Error('Push subscription server returned HTTP ' + response.status);
+      }
+
+      pushBtn.textContent = '✅ Notifications On';
+      pushBtn.disabled = true;
+    }catch(err){
+      console.error('MYChat Push subscription error:', err);
+      alert('Could not finish push setup: ' + (err.message || err));
+    }
+  }
+
+  // Browser install prompt.
+  window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
+    showControls();
     installBtn.style.display = 'block';
   });
 
-  installBtn.addEventListener('click', function(){
-    installBtn.style.display = 'none';
+  installBtn.addEventListener('click', async () => {
     if(!deferredPrompt) return;
     deferredPrompt.prompt();
-    deferredPrompt.userChoice.finally(function(){ deferredPrompt = null; });
-  });
-
-  window.addEventListener('appinstalled', function(){
-    installBtn.style.display = 'none';
+    try { await deferredPrompt.userChoice; } catch(_) {}
     deferredPrompt = null;
+    installBtn.style.display = 'none';
   });
 
-  // iOS Safari has no beforeinstallprompt — nudge users to "Add to Home Screen" manually
-  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-  var isInStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  if(isIOS && !isInStandalone){
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    installBtn.style.display = 'none';
+  });
+
+  // iOS has no beforeinstallprompt.
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  if(isIOS && !isStandalone()){
+    showControls();
     installBtn.style.display = 'block';
     installBtn.textContent = '⬇ Add to Home Screen';
-    installBtn.addEventListener('click', function(){
-      alert('To install: tap the Share icon, then "Add to Home Screen".');
+    installBtn.onclick = () => alert('To install MYChat: tap Share → Add to Home Screen.');
+  }
+
+  pushBtn.addEventListener('click', enablePushNotifications);
+
+  // Register the real same-origin service worker early. It handles push while
+  // the page is backgrounded/closed. The HTML itself cannot replace /sw.js.
+  if('serviceWorker' in navigator && window.isSecureContext){
+    registerPushServiceWorker().then(reg => {
+      if(reg && 'Notification' in window && Notification.permission === 'granted'){
+        pushBtn.style.display = 'block';
+      }
     });
+  }
+
+  // Expose a small API so the existing MYChat code can enable notifications
+  // after the user joins a room.
+  window.MYChatPush = {
+    enable: enablePushNotifications,
+    registration: () => swRegistration,
+    isSupported: () => ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)
+  };
+
+  // Show push control on the login screen when notifications are available.
+  if('Notification' in window){
+    showControls();
+    if(Notification.permission !== 'granted'){
+      pushBtn.style.display = 'block';
+    }
   }
 })();
 </script>
